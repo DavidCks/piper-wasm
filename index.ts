@@ -1,10 +1,8 @@
-import axios from "axios";
-import { initModule } from "./app";
-import { init as sherpaInit } from "./sherpa-onnx-wasm-main";
+// @ts-ignore
+import Worker from "worker-loader!./worker.js";
 
 class Piper {
   url: string;
-  module: Object;
 
   constructor(
     url: string,
@@ -12,36 +10,29 @@ class Piper {
     debug: boolean = true
   ) {
     this.url = url;
-    if (debug) {
-      this.validateUrls().then((validations) => {
-        // Filter out validations where the URL does not exist
-        const failedValidations = validations.filter(
-          (validation) => !validation.exists
-        );
-
-        // Log an error message for each failed validation
-        failedValidations.forEach((failedValidation) => {
-          console.error(`Validation failed for URL: ${failedValidation.url}`);
-        });
-      });
+    if (window.Worker) {
+      this.initWorker();
+    } else {
+      console.error("Critical:", "'Window' object doesn't have 'Worker'");
     }
-    this.module = initModule(onInit);
-    sherpaInit(this.module);
   }
 
-  async validateUrls(): Promise<{ url: string; exists: boolean }[]> {
-    const validations = [this.url].map(async (url) => {
-      try {
-        // Making a HEAD request to check if the URL exists without downloading the content
-        await axios.head(url);
-        return { url, exists: true };
-      } catch (error) {
-        // If the request fails, assume the URL does not exist or is inaccessible
-        return { url, exists: false };
+  initWorker() {
+    const url = new URL("./worker.js", import.meta.url);
+    const worker = new Worker(url.href, { type: "module" });
+    worker.onerror = function (event: MessageEvent) {
+      console.error("Worker error:", event);
+    };
+    worker.addEventListener("message", (e: MessageEvent) => {
+      const { type, data } = e.data;
+      switch (type) {
+        case "initDone":
+          console.log("Initialization completed");
+          break;
       }
     });
-
-    return Promise.all(validations);
+    worker.postMessage({ type: "hello" });
+    worker.postMessage({ type: "init" });
   }
 }
 

@@ -1,14 +1,7 @@
 import { initSherpaOnnxOfflineTts, OfflineTts } from "./sherpa-onnx.js";
 
-export type TtsModule = {
-  onRuntimeInitialized: (Module: TtsModule) => void;
-  expectedDataFileDownloads?: number;
-};
-
-export function initModule(
-  onInit: (generateFunction: (text: string) => void) => void
-): TtsModule {
-  let Module: TtsModule = {
+export function initModule(onInit) {
+  let Module = {
     onRuntimeInitialized: (Module) => {
       console.log("Model files downloaded!");
       console.log("Initializing tts ......");
@@ -20,15 +13,15 @@ export function initModule(
   return Module;
 }
 
-function generateFactory(tts: OfflineTts): (text: string) => void {
+function generateFactory(tts) {
   const audioCtx = new AudioContext({ sampleRate: tts.sampleRate });
-  const gen = (text: string) => {
+  const gen = (text) => {
     generate(text, audioCtx, tts);
   };
   return gen;
 }
 
-function generate(text: string, audioCtx: AudioContext, tts: OfflineTts) {
+function generate(text, audioCtx, tts) {
   text = text.trim();
   console.log("text", text);
 
