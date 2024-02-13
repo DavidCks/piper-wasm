@@ -1,33 +1,17 @@
-export function init(Module) {
+import { sherpaWASM } from "./sherpa-wasm";
+
+export function init(Module, data) {
   if (!Module.expectedDataFileDownloads) {
     Module.expectedDataFileDownloads = 0;
   }
   Module.expectedDataFileDownloads++;
-  (function () {
+  (function (_data) {
     if (Module["ENVIRONMENT_IS_PTHREAD"] || Module["$ww"]) return;
     var loadPackage = function (metadata) {
-      var PACKAGE_PATH = "";
-      if (typeof window === "object") {
-        PACKAGE_PATH = window["encodeURIComponent"](
-          window.location.pathname
-            .toString()
-            .substring(
-              0,
-              window.location.pathname.toString().lastIndexOf("/")
-            ) + "/"
-        );
-      } else if (
-        typeof process === "undefined" &&
-        typeof location !== "undefined"
-      ) {
-        PACKAGE_PATH = encodeURIComponent(
-          location.pathname
-            .toString()
-            .substring(0, location.pathname.toString().lastIndexOf("/")) + "/"
-        );
-      }
-      var PACKAGE_NAME = "../bin/sherpa-onnx-wasm-main.data";
-      var REMOTE_PACKAGE_BASE = "sherpa-onnx-wasm-main.data";
+      var PACKAGE_URL = _data["PACKAGE_NAME"];
+      var REMOTE_PACKAGE_BASE =
+        PACKAGE_URL.split("/")[PACKAGE_URL.split("/").length - 1];
+      var PACKAGE_NAME = `..bin/${REMOTE_PACKAGE_BASE}`;
       if (
         typeof Module["locateFilePackage"] === "function" &&
         !Module["locateFile"]
@@ -42,71 +26,7 @@ export function init(Module) {
         : REMOTE_PACKAGE_BASE;
       var REMOTE_PACKAGE_SIZE = metadata["remote_package_size"];
       function fetchRemotePackage(packageName, packageSize, callback, errback) {
-        if (
-          typeof process === "object" &&
-          typeof process.versions === "object" &&
-          typeof process.versions.node === "string"
-        ) {
-          require("fs").readFile(packageName, function (err, contents) {
-            if (err) {
-              errback(err);
-            } else {
-              callback(contents.buffer);
-            }
-          });
-          return;
-        }
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", packageName, true);
-        xhr.responseType = "arraybuffer";
-        xhr.onprogress = function (event) {
-          var url = packageName;
-          var size = packageSize;
-          if (event.total) size = event.total;
-          if (event.loaded) {
-            if (!xhr.addedTotal) {
-              xhr.addedTotal = true;
-              if (!Module.dataFileDownloads) Module.dataFileDownloads = {};
-              Module.dataFileDownloads[url] = {
-                loaded: event.loaded,
-                total: size,
-              };
-            } else {
-              Module.dataFileDownloads[url].loaded = event.loaded;
-            }
-            var total = 0;
-            var loaded = 0;
-            var num = 0;
-            for (var download in Module.dataFileDownloads) {
-              var data = Module.dataFileDownloads[download];
-              total += data.total;
-              loaded += data.loaded;
-              num++;
-            }
-            total = Math.ceil((total * Module.expectedDataFileDownloads) / num);
-            if (Module["setStatus"])
-              Module["setStatus"](`Downloading data... (${loaded}/${total})`);
-          } else if (!Module.dataFileDownloads) {
-            if (Module["setStatus"]) Module["setStatus"]("Downloading data...");
-          }
-        };
-        xhr.onerror = function (event) {
-          throw new Error("NetworkError for: " + packageName);
-        };
-        xhr.onload = function (event) {
-          if (
-            xhr.status == 200 ||
-            xhr.status == 304 ||
-            xhr.status == 206 ||
-            (xhr.status == 0 && xhr.response)
-          ) {
-            var packageData = xhr.response;
-            callback(packageData);
-          } else {
-            throw new Error(xhr.statusText + " : " + xhr.responseURL);
-          }
-        };
-        xhr.send(null);
+        callback(_data["DATA"]);
       }
       function handleError(error) {
         console.error("package error:", error);
@@ -1571,7 +1491,7 @@ export function init(Module) {
       ],
       remote_package_size: 96574544,
     });
-  })();
+  })(data);
   var moduleOverrides = Object.assign({}, Module);
   var arguments_ = [];
   var thisProgram = "./this.program";
@@ -1795,7 +1715,7 @@ export function init(Module) {
   var isDataURI = (filename) => filename.startsWith(dataURIPrefix);
   var isFileURI = (filename) => filename.startsWith("file://");
   var wasmBinaryFile;
-  wasmBinaryFile = "sherpa-onnx-wasm-main.wasm";
+  wasmBinaryFile = sherpaWASM;
   if (!isDataURI(wasmBinaryFile)) {
     wasmBinaryFile = locateFile(wasmBinaryFile);
   }

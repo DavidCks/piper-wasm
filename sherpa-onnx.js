@@ -184,7 +184,7 @@ export class OfflineTts {
   }
 }
 
-export function initSherpaOnnxOfflineTts(Module) {
+export function initSherpaOnnxOfflineTts(Module, data) {
   let offlineTtsVitsModelConfig = {
     model: "./model.onnx",
     lexicon: "",

@@ -17,7 +17,7 @@ class Piper {
     }
   }
 
-  initWorker() {
+  async initWorker() {
     const url = new URL("./worker.js", import.meta.url);
     const worker = new Worker(url.href, { type: "module" });
     worker.onerror = function (event: MessageEvent) {
@@ -32,7 +32,22 @@ class Piper {
       }
     });
     worker.postMessage({ type: "hello" });
-    worker.postMessage({ type: "init" });
+    this.convertToBase64(this.url, (buffer: ArrayBuffer) => {
+      let workerData = {
+        PACKAGE_NAME: this.url,
+        DATA: buffer,
+      };
+      worker.postMessage({ type: "init", data: workerData });
+    });
+  }
+
+  convertToBase64(file: string, callback: (buffer: ArrayBuffer) => void) {
+    fetch(file)
+      .then((response) => response.arrayBuffer())
+      .then((data) => {
+        callback(data);
+      })
+      .catch((error) => console.error("Fetching error:", error));
   }
 }
 

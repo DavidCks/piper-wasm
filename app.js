@@ -1,11 +1,11 @@
 import { initSherpaOnnxOfflineTts, OfflineTts } from "./sherpa-onnx.js";
 
-export function initModule(onInit) {
+export function initModule(onInit, data) {
   let Module = {
     onRuntimeInitialized: (Module) => {
       console.log("Model files downloaded!");
       console.log("Initializing tts ......");
-      const tts = initSherpaOnnxOfflineTts(Module);
+      const tts = initSherpaOnnxOfflineTts(Module, data);
       const genFunc = generateFactory(tts);
       onInit(genFunc);
     },

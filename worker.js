@@ -5,11 +5,11 @@ import { init as sherpaInit } from "./sherpa-onnx-wasm-main";
 let module;
 let generate;
 
-async function initialize() {
+async function initialize(data) {
   module = initModule((genFunc) => {
     generate = genFunc;
-  });
-  await sherpaInit(module);
+  }, data);
+  await sherpaInit(module, data);
   self.postMessage({ type: "initDone" });
 }
 
@@ -18,8 +18,9 @@ addEventListener("message", async (e) => {
   switch (type) {
     case "hello":
       self.postMessage({ type: "Hello World!" });
+      break;
     case "init":
-      await initialize();
+      await initialize(data);
       break;
   }
 });
