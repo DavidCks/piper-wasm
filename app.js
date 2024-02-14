@@ -7,46 +7,30 @@ export function initModule(onInit, data) {
       console.log("Initializing tts ......");
       const tts = initSherpaOnnxOfflineTts(Module, data);
       const genFunc = generateFactory(tts);
-      onInit(genFunc);
+      onInit(tts, genFunc);
     },
   };
   return Module;
 }
 
 function generateFactory(tts) {
-  const audioCtx = new AudioContext({ sampleRate: tts.sampleRate });
   const gen = (text) => {
-    generate(text, audioCtx, tts);
+    return generate(text, tts);
   };
   return gen;
 }
 
-function generate(text, audioCtx, tts) {
+function generate(text, tts) {
   text = text.trim();
-  console.log("text", text);
+  console.log("text:", text);
 
   let audio = tts.generate({
     text: text,
     sid: 1,
     speed: 1,
   });
-
-  console.log(audio.samples.length, audio.sampleRate);
-
-  if (!audioCtx) {
-    audioCtx = new AudioContext({ sampleRate: tts.sampleRate });
-  }
-
-  const buffer = audioCtx.createBuffer(1, audio.samples.length, tts.sampleRate);
-
-  const ptr = buffer.getChannelData(0);
-  for (let i = 0; i < audio.samples.length; i++) {
-    ptr[i] = audio.samples[i];
-  }
-  const source = audioCtx.createBufferSource();
-  source.buffer = buffer;
-  source.connect(audioCtx.destination);
-  source.start();
+  console.log("audio:", audio);
+  return audio;
 }
 
 // this function is copied/modified from

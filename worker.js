@@ -6,11 +6,12 @@ let module;
 let generate;
 
 async function initialize(data) {
-  module = initModule((genFunc) => {
+  module = initModule((tts, genFunc) => {
+    self.postMessage({ type: "ttsData", data: { sampleRate: tts.sampleRate } });
     generate = genFunc;
+    self.postMessage({ type: "initDone" });
   }, data);
   await sherpaInit(module, data);
-  self.postMessage({ type: "initDone" });
 }
 
 addEventListener("message", async (e) => {
@@ -21,6 +22,16 @@ addEventListener("message", async (e) => {
       break;
     case "init":
       await initialize(data);
+      break;
+    case "generate":
+      const audioObj = generate(data.text);
+      self.postMessage({
+        type: "audioObj",
+        data: {
+          samples: audioObj.samples,
+          sampleRate: audioObj.sampleRate,
+        },
+      });
       break;
   }
 });
