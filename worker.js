@@ -28,6 +28,8 @@ addEventListener("message", async (e) => {
       self.postMessage({
         type: "audioObj",
         data: {
+          id: data.id,
+          text: data.text,
           samples: audioObj.samples,
           sampleRate: audioObj.sampleRate,
         },

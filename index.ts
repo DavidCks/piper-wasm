@@ -7,11 +7,26 @@ class Piper {
   ttsData?: {
     sampleRate: number;
   };
-  onInit: (generateFunction: (text: string) => void) => void;
+  onInit: (
+    generateFunction: (
+      text: string,
+      onStart?: (id: number, text: string) => void,
+      onEnd?: (id: number, text: string) => void
+    ) => void
+  ) => void;
+  onStart: { [id: number]: (id: number, text: string) => void } = {};
+  onEnd: { [id: number]: (id: number, text: string) => void } = {};
+  generationIndex: number = 0;
 
   constructor(
     url: string,
-    onInit: (generateFunction: (text: string) => void) => void,
+    onInit: (
+      generateFunction: (
+        text: string,
+        onStart?: (id: number, text: string) => void,
+        onEnd?: (id: number, text: string) => void
+      ) => void
+    ) => void,
     debug: boolean = true
   ) {
     this.url = url;
@@ -37,9 +52,25 @@ class Piper {
           break;
         case "ttsData":
           this.ttsData = data;
-          this.onInit((text: string) => {
-            worker.postMessage({ type: "generate", data: { text: text } });
-          });
+          this.onInit(
+            (
+              text: string,
+              onStart?: (id: number, text: string) => void,
+              onEnd?: (id: number, text: string) => void
+            ) => {
+              this.onStart[this.generationIndex] =
+                onStart ??
+                ((_id, _text) => console.log(_id, _text, "(started reading)"));
+              this.onEnd[this.generationIndex] =
+                onEnd ??
+                ((_id, _text) => console.log(_id, _text, "(ended reading)"));
+              worker.postMessage({
+                type: "generate",
+                data: { text: text, id: this.generationIndex },
+              });
+              this.generationIndex++;
+            }
+          );
           break;
         case "audioObj":
           this.handleAudioObj(data);
@@ -56,7 +87,7 @@ class Piper {
   }
 
   handleAudioObj(audio: any) {
-    console.log(audio.samples.length, audio.sampleRate);
+    console.log(audio.id, audio.samples.length, audio.sampleRate);
 
     if (!this.ttsData) {
       console.error(
@@ -86,6 +117,10 @@ class Piper {
     source.buffer = buffer;
     source.connect(this.audioCtx.destination);
     source.start();
+    this.onStart[audio.id](audio.id, audio.text);
+    source.addEventListener("ended", () => {
+      this.onEnd[audio.id](audio.id, audio.text);
+    });
   }
 
   convertToBase64(file: string, callback: (buffer: ArrayBuffer) => void) {
