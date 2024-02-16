@@ -1,4 +1,4 @@
-import { lengthBytesUTF8, stringToUTF8, setValue } from "./common/utils";
+import { lengthBytesUTF8, stringToUTF8, setValue } from "./common/utils.js";
 
 function freeConfig(config) {
   if ("buffer" in config) {

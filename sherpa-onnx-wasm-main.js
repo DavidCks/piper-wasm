@@ -1,4 +1,4 @@
-import { sherpaWASM } from "./sherpa-wasm";
+import { sherpaWASM } from "./sherpa-wasm.js";
 
 export function init(Module, data) {
   if (!Module.expectedDataFileDownloads) {
@@ -1512,57 +1512,7 @@ export function init(Module, data) {
     return scriptDirectory + path;
   }
   var read_, readAsync, readBinary;
-  if (ENVIRONMENT_IS_NODE) {
-    var fs = require("fs");
-    var nodePath = require("path");
-    if (ENVIRONMENT_IS_WORKER) {
-      scriptDirectory = nodePath.dirname(scriptDirectory) + "/";
-    } else {
-      scriptDirectory = __dirname + "/";
-    }
-    read_ = (filename, binary) => {
-      filename = isFileURI(filename)
-        ? new URL(filename)
-        : nodePath.normalize(filename);
-      return fs.readFileSync(filename, binary ? undefined : "utf8");
-    };
-    readBinary = (filename) => {
-      var ret = read_(filename, true);
-      if (!ret.buffer) {
-        ret = new Uint8Array(ret);
-      }
-      return ret;
-    };
-    readAsync = (filename, onload, onerror, binary = true) => {
-      filename = isFileURI(filename)
-        ? new URL(filename)
-        : nodePath.normalize(filename);
-      fs.readFile(filename, binary ? undefined : "utf8", (err, data) => {
-        if (err) onerror(err);
-        else onload(binary ? data.buffer : data);
-      });
-    };
-    if (!Module["thisProgram"] && process.argv.length > 1) {
-      thisProgram = process.argv[1].replace(/\\/g, "/");
-    }
-    arguments_ = process.argv.slice(2);
-    if (typeof module != "undefined") {
-      module["exports"] = Module;
-    }
-    process.on("uncaughtException", (ex) => {
-      if (
-        ex !== "unwind" &&
-        !(ex instanceof ExitStatus) &&
-        !(ex.context instanceof ExitStatus)
-      ) {
-        throw ex;
-      }
-    });
-    quit_ = (status, toThrow) => {
-      process.exitCode = status;
-      throw toThrow;
-    };
-  } else if (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) {
+  if (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) {
     if (ENVIRONMENT_IS_WORKER) {
       scriptDirectory = self.location.href;
     } else if (typeof document != "undefined" && document.currentScript) {
@@ -2041,16 +1991,6 @@ export function init(Module, data) {
       typeof crypto["getRandomValues"] == "function"
     ) {
       return (view) => crypto.getRandomValues(view);
-    } else if (ENVIRONMENT_IS_NODE) {
-      try {
-        var crypto_module = require("crypto");
-        var randomFillSync = crypto_module["randomFillSync"];
-        if (randomFillSync) {
-          return (view) => crypto_module["randomFillSync"](view);
-        }
-        var randomBytes = crypto_module["randomBytes"];
-        return (view) => (view.set(randomBytes(view.byteLength)), view);
-      } catch (e) {}
     }
     abort("initRandomDevice");
   };

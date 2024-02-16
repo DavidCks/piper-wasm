@@ -1,6 +1,6 @@
 // Import the initModule and sherpaInit functions directly
-import { initModule } from "./app";
-import { init as sherpaInit } from "./sherpa-onnx-wasm-main";
+import { initModule } from "./app.js"; // Adjust the path as necessary
+import { init as sherpaInit } from "./sherpa-onnx-wasm-main.js"; // Adjust the path as necessary
 
 let module;
 let generate;

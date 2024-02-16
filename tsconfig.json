@@ -3,10 +3,13 @@
     "lib": ["ESNext"],
     "module": "esnext",
     "target": "esnext",
+    "outDir": "./dist/",
+    "sourceMap": true,
+    "noImplicitAny": true,
     "moduleResolution": "bundler",
+    "declaration": true,
     "moduleDetection": "force",
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
+    "noEmit": false,
     "composite": true,
     "strict": true,
     "downlevelIteration": true,
@@ -16,7 +19,15 @@
     "forceConsistentCasingInFileNames": true,
     "allowJs": true,
     "types": [
-      "bun-types" // add Bun global
+      "bun-types"
     ]
-  }
+  },
+  "include": [
+    "./**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "3rd",
+    "dist"
+  ]
 }

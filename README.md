@@ -1,5 +1,13 @@
 # piper-wasm
 
+## Disclaimer
+
+This is an **unofficial** package. I have no affiliation to the people in charge of piper-tts or sherpa-onnx.
+
+I'm sure one of them will develop and maintain a package that isn't as hacky as this. In the meantime, feel free to use this package (outside of production) and contribute if you can!
+
+## What it does
+
 Spawns a web worker to run piper tts in, using a wasm build of sherpa onnx as the runtime.
 
 ## Requirements
@@ -8,14 +16,17 @@ A data file that is compatible with sherpa-onnx
 
 ## Usage
 
-After Piper has been initialized, it will provide you the function to synthesize speech via a callback. The synthesize function takes a [SpeechSynthesisUtterance](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesisUtterance).
+```bash
+npm install piper-wasm
+```
 
+After the runtime has been initialized, it will provide you the function to synthesize speech via a callback. The synthesize function takes a [SpeechSynthesisUtterance](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesisUtterance).
 
 ### JavaScript/TypeScript
 
 ```ts
 // imports
-import Piper from "piper-wasm/index";
+import Piper from "piper-wasm/dist/index";
 
 function onInit(generate: (utterance: SpeechSynthesisUtterance) => void): void {
   const utterance = new SpeechSynthesisUtterance("Hello, World!");
@@ -30,7 +41,7 @@ const piper = new Piper(`path_to_model.data`, onInit);
 ```ts
 // imports
 import React, { useRef, useState, useEffect } from 'react';
-import Piper from "piper-wasm/index";
+import Piper from "piper-wasm/dist/index";
 
 function PiperComponent() {
   // reference holder
