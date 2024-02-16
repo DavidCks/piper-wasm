@@ -26,7 +26,7 @@ After the runtime has been initialized, it will provide you the function to synt
 
 ```ts
 // imports
-import Piper from "piper-wasm/dist/index";
+import Piper from "piper-wasm/lib/index";
 
 function onInit(generate: (utterance: SpeechSynthesisUtterance) => void): void {
   const utterance = new SpeechSynthesisUtterance("Hello, World!");
@@ -41,7 +41,7 @@ const piper = new Piper(`path_to_model.data`, onInit);
 ```ts
 // imports
 import React, { useRef, useState, useEffect } from 'react';
-import Piper from "piper-wasm/dist/index";
+import Piper from "piper-wasm/lib/index";
 
 function PiperComponent() {
   // reference holder
