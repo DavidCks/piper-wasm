@@ -8,11 +8,7 @@ class Piper {
     sampleRate: number;
   };
   onInit: (
-    generateFunction: (
-      text: string,
-      onStart?: (id: number, text: string) => void,
-      onEnd?: (id: number, text: string) => void
-    ) => void
+    generateFunction: (utterance: SpeechSynthesisUtterance) => void
   ) => void;
   onStart: { [id: number]: (id: number, text: string) => void } = {};
   onEnd: { [id: number]: (id: number, text: string) => void } = {};
@@ -21,11 +17,7 @@ class Piper {
   constructor(
     url: string,
     onInit: (
-      generateFunction: (
-        text: string,
-        onStart?: (id: number, text: string) => void,
-        onEnd?: (id: number, text: string) => void
-      ) => void
+      generateFunction: (utterance: SpeechSynthesisUtterance) => void
     ) => void,
     debug: boolean = true
   ) {
@@ -52,25 +44,21 @@ class Piper {
           break;
         case "ttsData":
           this.ttsData = data;
-          this.onInit(
-            (
-              text: string,
-              onStart?: (id: number, text: string) => void,
-              onEnd?: (id: number, text: string) => void
-            ) => {
-              this.onStart[this.generationIndex] =
-                onStart ??
-                ((_id, _text) => console.log(_id, _text, "(started reading)"));
-              this.onEnd[this.generationIndex] =
-                onEnd ??
-                ((_id, _text) => console.log(_id, _text, "(ended reading)"));
-              worker.postMessage({
-                type: "generate",
-                data: { text: text, id: this.generationIndex },
-              });
-              this.generationIndex++;
-            }
-          );
+          this.onInit((utterance: SpeechSynthesisUtterance) => {
+            this.onStart[this.generationIndex] = (_id, _text) => {
+              utterance.dispatchEvent(new Event("start"));
+              console.log(_id, _text, "(started reading)");
+            };
+            this.onEnd[this.generationIndex] = (_id, _text) => {
+              utterance.dispatchEvent(new Event("end"));
+              console.log(_id, _text, "(started reading)");
+            };
+            worker.postMessage({
+              type: "generate",
+              data: { text: utterance.text, id: this.generationIndex },
+            });
+            this.generationIndex++;
+          });
           break;
         case "audioObj":
           this.handleAudioObj(data);
