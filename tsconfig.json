@@ -1,33 +1,46 @@
 {
+  "exclude": [
+      "./lib",
+      "./node_modules",
+      "./3rd"
+  ],
+  "include": [
+    "**/*.js",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
   "compilerOptions": {
-    "lib": ["ESNext"],
-    "module": "esnext",
-    "target": "esnext",
-    "outDir": "./dist/",
-    "sourceMap": true,
-    "noImplicitAny": true,
-    "moduleResolution": "bundler",
+    "target": "es6",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "resolveJsonModule": true,
+    "strict": false,
+    "importHelpers": true,
     "declaration": true,
+    "sourceMap": true,
+    "baseUrl": "./",
+    "rootDir": "./",
+    "outDir": "./lib",
+    "module": "esnext",
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
     "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
+    "emitDeclarationOnly" : true,
     "noEmit": false,
     "composite": true,
-    "strict": true,
     "downlevelIteration": true,
     "skipLibCheck": true,
-    "jsx": "react-jsx",
+    "jsx": "preserve",
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "allowJs": true,
-    "types": [
-      "bun-types"
-    ]
-  },
-  "include": [
-    "./**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "3rd",
-    "dist"
-  ]
+  }
 }

@@ -1,24 +1,24 @@
 {
   "name": "piper-wasm",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "description": "Spawns a webworker running a wasm build of the sherpa-onnx runtime to generate speech using piper TTS client-side",
   "author": "DavidCks",
   "module": "index.ts",
+  "main": "lib/index.js",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
   "license": "Apache-2.0",
   "devDependencies": {
     "bun-types": "latest",
     "webpack-cli": "^5.1.4"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "tslib": "^2.6.2"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "bun build index.ts --outdir lib && bun build worker.js --outdir lib && bun run build:declaration",
+    "build:declaration": "tsc --emitDeclarationOnly --project tsconfig.json"
   },
   "dependencies": {
-    "worker-loader": "^3.0.8"
   }
 }

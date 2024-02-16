@@ -85,6 +85,16 @@ function PiperComponent() {
 }
 ```
 
+### Next.js
+
+It's fine in dev, but when building this might appear:
+
+```bash
+x 'import', and 'export' cannot be used outside of module code
+```
+
+If anyone knows what to do about this, send a PR or just a message or email to <davidckss@proton.me>. It's not a priority for me, but it's certainly frustrating, so I'd like to spare anyone who wants to use this the pain.
+
 ## Implemented features of SpeechSynthesisUtterance
 
 ### Instance properties

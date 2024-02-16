@@ -1,5 +1,5 @@
 // @ts-ignore
-import Worker from "worker-loader!./worker.js";
+// import Worker from "worker-loader!./worker.js";
 
 class Piper {
   url: string;
@@ -19,7 +19,7 @@ class Piper {
     onInit: (
       generateFunction: (utterance: SpeechSynthesisUtterance) => void
     ) => void,
-    debug: boolean = true
+    _debug: boolean = true
   ) {
     this.url = url;
     this.onInit = onInit;
@@ -33,9 +33,9 @@ class Piper {
   async initWorker() {
     const url = new URL("./worker.js", import.meta.url);
     const worker = new Worker(url.href, { type: "module" });
-    worker.onerror = function (event: MessageEvent) {
-      console.error("Worker error:", event);
-    };
+    // worker.onerror = function (event: MessageEvent) {
+    //   console.error("Worker error:", event);
+    // };
     worker.addEventListener("message", (e: MessageEvent) => {
       const { type, data } = e.data;
       switch (type) {
