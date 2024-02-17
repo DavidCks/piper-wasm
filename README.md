@@ -85,15 +85,134 @@ function PiperComponent() {
 }
 ```
 
-### Next.js
+### Chrome Extension
 
-It's fine in dev, but when building this might appear:
+Google is weirdly strict about spawning web workers from content scripts and running wasm. So there's a few things that you have to do.
 
-```bash
-x 'import', and 'export' cannot be used outside of module code
+First, you need to build an api that wraps the capabilities of piper-wasm inside a worker:
+
+#### worker.js
+
+```js
+
+let piper; // Piper
+let generate; // (utterance: SpeechSynthesisUtterance) => void
+let isInitializing = false;
+
+function initPiper(tabID /* number */, utterance: /* SpeechSynthesisUtterance | undefined */) /*: Piper */ {
+  if (isInitializing) {
+    console.warn('Warning:', 'piper-wasm is already being initialized', 'aborting');
+    return;
+  }
+  const benv = chrome ?? browser;
+  isInitializing = true;
+  return new Piper(
+    benv.runtime.getURL(path_to_voice.data),
+    genFunc => {
+      generate = genFunc;
+      isInitializing = false;
+      if (utterance) {
+        initGenerate(utterance, tabID);
+      }
+    },
+    tabID,
+  );
+}
+
+function initGenerate(utterance: MimicSpeechSynthesisUtterance, tabID) {
+  if (isInitializing) {
+    console.warn(
+      'Warning:',
+      'piper-wasm is initializing.',
+      'refrain from calling the generate function before piper-wasm has finished initializing',
+      'aborting',
+    );
+    return;
+  }
+  piper = piper ?? initPiper(tabID);
+  generate ? generate(utterance) : initPiper(tabID, utterance);
+}
+
+chrome.runtime.onMessage.addListener((message: WorkerMessage, sender: chrome.runtime.MessageSender) => {
+  switch (message.type) {
+    case 'init':
+      piper = piper ?? initPiper(sender.tab.id);
+      break;
+    case 'generate':
+      initGenerate(message.data, sender.tab.id);
+      break;
+    default:
+      console.error(`Message type '${message.type}' does not exist`);
+      break;
+  }
+});
 ```
 
-If anyone knows what to do about this, send a PR or just a message or email to <davidckss@proton.me>. It's not a priority for me, but it's certainly frustrating, so I'd like to spare anyone who wants to use this the pain.
+Next, you'll need to add that worker as a background script and also allow 'wasm-unsafe-eval' as a script-src.
+
+#### manifest.js
+
+add this to the manifest:
+
+```js
+  content_security_policy: {
+    extension_pages: "script-src 'wasm-unsafe-eval';",
+  },
+
+  background: {
+    service_worker: 'path_to_worker.js',
+    type: 'module',
+  },
+```
+
+#### usePiperBackground.js
+
+(this is just explanation text, feel free to skip to the code below)
+
+
+Now, we need an interface to communicate with the background worker. If piper-wasm detects that you are running piper from within a background script, it will automatically try to communicate with the PiperRunner through messages. Since you can't pass a SpeechSynthesisUtterance to a worker and have it retain its callbacks, the runner will need a way to fetch that utterance from within the content script.
+For that purpose, it will call the setOnAudio function to retrieve an utterance in order to invoke events such as "start" and "end" at the appropriate times. For managing utterances, it will give you the actual text that piper will synthesize and a unique id for the utterance in order to give you the ability to manage the utterances that way.
+
+The id is a simple number starting from 0 that is being incemented by 1 each time the internal generate function is called.
+
+So if you need to do some more advanced management, say, when you want to synthesize speech but dont want to wait for the last utterance to be finished to start the synthesization process, you could run a variable in parallel that counts up from 0 every time you call the generate function and store the utterances inside a dict with that id being the key.
+
+```js
+// import the runner inside your content script
+import { PiperRunner } from 'piper-wasm/lib/index';
+
+function sendMessageToBackground(message: unknown) {
+  (chrome ?? browser).runtime.sendMessage(message);
+}
+
+function init() {
+  sendMessageToBackground({ type: 'init' });
+}
+
+function generate(utterance) {
+  sendMessageToBackground({ type: 'generate', data: mimicUtterance });
+}
+
+const usePiperBackground = () => {
+  init();
+  const piperRunner = new PiperRunner();
+  const generateFunc = (utterance) => {
+    piperRunner.setOnAudio((_id, _text) => utterance);
+    generate(utterance);
+  };
+
+  return generateFunc;
+};
+
+export default usePiperBackground;
+```
+
+#### Finally using the damn thing
+
+```js
+import usePiperBackground from './usePiperBackground';
+const piperSynthesize = usePiperBackground();
+```
 
 ## Implemented features of SpeechSynthesisUtterance
 

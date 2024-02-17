@@ -5,27 +5,36 @@ import { init as sherpaInit } from "./sherpa-onnx-wasm-main.js"; // Adjust the p
 let module;
 let generate;
 
-async function initialize(data) {
+async function initialize(data, messageCallback = undefined) {
+  const postMessage = messageCallback ?? self.postMessage;
   module = initModule((tts, genFunc) => {
-    self.postMessage({ type: "ttsData", data: { sampleRate: tts.sampleRate } });
+    const ttsDataMessage = {
+      type: "ttsData",
+      data: { sampleRate: tts.sampleRate },
+    };
     generate = genFunc;
-    self.postMessage({ type: "initDone" });
+    postMessage(ttsDataMessage);
+    postMessage({ type: "initDone" });
   }, data);
   await sherpaInit(module, data);
 }
 
-addEventListener("message", async (e) => {
-  const { type, data } = e.data;
+export const handleMessage = async (
+  type,
+  data,
+  messageCallback = undefined
+) => {
+  const postMessage = messageCallback ?? self.postMessage;
   switch (type) {
     case "hello":
-      self.postMessage({ type: "Hello World!" });
+      postMessage({ type: "Hello World!" });
       break;
     case "init":
-      await initialize(data);
+      await initialize(data, postMessage);
       break;
     case "generate":
       const audioObj = generate(data.text);
-      self.postMessage({
+      const audioObjMessage = {
         type: "audioObj",
         data: {
           id: data.id,
@@ -33,7 +42,13 @@ addEventListener("message", async (e) => {
           samples: audioObj.samples,
           sampleRate: audioObj.sampleRate,
         },
-      });
+      };
+      postMessage(audioObjMessage);
       break;
   }
+};
+
+addEventListener("message", async (e) => {
+  const { type, data } = e.data;
+  handleMessage(type, data);
 });

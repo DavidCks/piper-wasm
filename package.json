@@ -1,6 +1,6 @@
 {
   "name": "piper-wasm",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Spawns a webworker running a wasm build of the sherpa-onnx runtime to generate speech using piper TTS client-side",
   "author": "DavidCks",
   "module": "index.ts",
@@ -20,5 +20,8 @@
     "build:declaration": "tsc --emitDeclarationOnly --project tsconfig.json"
   },
   "dependencies": {
+    "@types/chrome": "^0.0.260",
+    "@types/firefox-webext-browser": "^120.0.0",
+    "@types/webextension-polyfill": "^0.10.7"
   }
 }

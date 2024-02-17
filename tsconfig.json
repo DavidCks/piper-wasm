@@ -16,6 +16,7 @@
       "dom.iterable",
       "esnext"
     ],
+    "types": ["chrome", "node", "@types/firefox-webext-browser"],
     "resolveJsonModule": true,
     "strict": false,
     "importHelpers": true,

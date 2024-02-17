@@ -1,17 +1,114 @@
-// @ts-ignore
+// @ts - ignore
 // import Worker from "worker-loader!./worker.js";
+import { handleMessage as postMessageSync } from "./worker";
+declare var serviceWorker: any;
+
+export type TTSData = {
+  sampleRate: number;
+};
+
+export type AudioData = {
+  id: number;
+  text: string;
+  samples: Object;
+  sampleRate: number;
+};
+
+type ClientMessage = {
+  type: "piperWasmClientAudioObject";
+  data: { ttsData: TTSData; audioData: AudioData };
+};
+
+export class PiperRunner {
+  audioCtx?: AudioContext;
+  messageHandler?: (message: ClientMessage) => void;
+
+  constructor() {}
+
+  setOnAudio(onAudio: (id, text) => SpeechSynthesisUtterance) {
+    if (this.messageHandler) {
+      chrome.runtime.onMessage.removeListener(this.messageHandler);
+    }
+    this.messageHandler = (message: ClientMessage) => {
+      switch (message.type) {
+        case "piperWasmClientAudioObject":
+          const utterance = onAudio(
+            message.data.audioData.id,
+            message.data.audioData.text
+          );
+          this.generate({
+            utterance: utterance,
+            audioData: message.data.audioData,
+            ttsData: message.data.ttsData,
+          });
+          break;
+        default:
+          break;
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(this.messageHandler);
+  }
+
+  _onStart(utterance, id, text) {
+    utterance.dispatchEvent(
+      new SpeechSynthesisEvent("start", { utterance: utterance })
+    );
+    console.log(id, text, "(started reading)");
+  }
+
+  _onEnd(utterance, id, text) {
+    utterance.dispatchEvent(
+      new SpeechSynthesisEvent("end", { utterance: utterance })
+    );
+    console.log(id, text, "(started reading)");
+  }
+
+  generate(from: {
+    utterance: SpeechSynthesisUtterance;
+    audioData: AudioData;
+    ttsData: TTSData;
+  }) {
+    if (!this.audioCtx) {
+      this.audioCtx = new AudioContext({
+        sampleRate: from.ttsData.sampleRate,
+      });
+    }
+    const sampleLength = Object.entries(from.audioData.samples).length;
+
+    const buffer = this.audioCtx.createBuffer(
+      1,
+      sampleLength,
+      from.ttsData.sampleRate
+    );
+
+    const ptr = buffer.getChannelData(0);
+    for (let i = 0; i < sampleLength; i++) {
+      ptr[i] = from.audioData.samples[i];
+    }
+    const source = this.audioCtx.createBufferSource();
+    source.buffer = buffer;
+    const durationMs = (sampleLength / from.audioData.sampleRate) * 1000;
+
+    source.connect(this.audioCtx.destination);
+    source.start();
+    this._onStart(from.utterance, from.audioData.id, from.audioData.text);
+    setTimeout(() => {
+      this._onEnd(from.utterance, from.audioData.id, from.audioData.text);
+    }, durationMs);
+  }
+}
 
 class Piper {
+  piperRunner = new PiperRunner();
+  identity = "piper-wasm";
   url: string;
-  audioCtx?: AudioContext;
-  ttsData?: {
-    sampleRate: number;
-  };
+  tabID?: number;
+  ttsData?: TTSData;
   onInit: (
     generateFunction: (utterance: SpeechSynthesisUtterance) => void
   ) => void;
-  onStart: { [id: number]: (id: number, text: string) => void } = {};
-  onEnd: { [id: number]: (id: number, text: string) => void } = {};
+  utterances: SpeechSynthesisUtterance[] = [];
   generationIndex: number = 0;
 
   constructor(
@@ -19,62 +116,100 @@ class Piper {
     onInit: (
       generateFunction: (utterance: SpeechSynthesisUtterance) => void
     ) => void,
-    _debug: boolean = true
+    tabID?: number
   ) {
     this.url = url;
     this.onInit = onInit;
-    if (window.Worker) {
-      this.initWorker();
-    } else {
-      console.error("Critical:", "'Window' object doesn't have 'Worker'");
+    this.initWorker();
+    this.tabID = tabID;
+  }
+
+  postMessageSyncFactory(
+    callback: (type: string, data: any, instance: Piper) => void
+  ) {
+    return async ({ type, data = undefined }) =>
+      await postMessageSync(type, data, ({ type, data }) =>
+        callback(type, data, this)
+      );
+  }
+
+  isPiper(instance: any): instance is Piper {
+    return (instance as Piper).identity === "piper-wasm";
+  }
+
+  handleWorkerMessage(type: string, data: any, workerInstance: Worker | Piper) {
+    const workerIsPiper =
+      (workerInstance as Piper).isPiper &&
+      (workerInstance as Piper).isPiper(workerInstance);
+    const postMessage = workerIsPiper
+      ? workerInstance.postMessageSyncFactory(
+          workerInstance.handleWorkerMessage
+        )
+      : (workerInstance as Worker).postMessage;
+
+    const piperInstance: Piper | undefined =
+      this ?? workerIsPiper ? (workerInstance as Piper) : undefined;
+    if (!piperInstance) {
+      console.error(
+        "Critical:",
+        "The class instance got lost somehow. Never had that happen before. Curious."
+      );
+    }
+    switch (type) {
+      case "initDone":
+        console.log("Initialization completed");
+        break;
+      case "ttsData":
+        piperInstance.ttsData = data;
+        piperInstance.onInit((utterance: SpeechSynthesisUtterance) => {
+          piperInstance.utterances[piperInstance.generationIndex] = utterance;
+          postMessage({
+            type: "generate",
+            data: { text: utterance.text, id: piperInstance.generationIndex },
+          });
+          piperInstance.generationIndex++;
+        });
+        break;
+      case "audioObj":
+        piperInstance.handleAudioObj(data);
     }
   }
 
   async initWorker() {
-    const url = new URL("./worker.js", import.meta.url);
-    const worker = new Worker(url.href, { type: "module" });
-    // worker.onerror = function (event: MessageEvent) {
-    //   console.error("Worker error:", event);
-    // };
-    worker.addEventListener("message", (e: MessageEvent) => {
-      const { type, data } = e.data;
-      switch (type) {
-        case "initDone":
-          console.log("Initialization completed");
-          break;
-        case "ttsData":
-          this.ttsData = data;
-          this.onInit((utterance: SpeechSynthesisUtterance) => {
-            this.onStart[this.generationIndex] = (_id, _text) => {
-              utterance.dispatchEvent(new Event("start"));
-              console.log(_id, _text, "(started reading)");
-            };
-            this.onEnd[this.generationIndex] = (_id, _text) => {
-              utterance.dispatchEvent(new Event("end"));
-              console.log(_id, _text, "(started reading)");
-            };
-            worker.postMessage({
-              type: "generate",
-              data: { text: utterance.text, id: this.generationIndex },
-            });
-            this.generationIndex++;
-          });
-          break;
-        case "audioObj":
-          this.handleAudioObj(data);
-      }
-    });
-    worker.postMessage({ type: "hello" });
+    let url: URL;
+    let worker: Worker | undefined;
+    let postMessage;
+    try {
+      url = new URL("./worker.js", import.meta.url);
+      worker = new Worker(url.href, { type: "module" });
+      postMessage = worker.postMessage;
+    } catch (error) {
+      console.warn(
+        "Warning:",
+        "Piper-wasm couldn't initialize it's own worker.",
+        error,
+        "\n",
+        "Using on current thread."
+      );
+      postMessage = this.postMessageSyncFactory(this.handleWorkerMessage);
+    }
+
+    worker &&
+      worker.addEventListener("message", (e: MessageEvent) => {
+        const { type, data } = e.data;
+        this.handleWorkerMessage(type, data, worker);
+      });
+    postMessage({ type: "hello" });
     this.convertToBase64(this.url, (buffer: ArrayBuffer) => {
       let workerData = {
         PACKAGE_NAME: this.url,
         DATA: buffer,
       };
-      worker.postMessage({ type: "init", data: workerData });
+      postMessage({ type: "init", data: workerData });
     });
   }
 
-  handleAudioObj(audio: any) {
+  handleAudioObj(audio: any): void {
     console.log(audio.id, audio.samples.length, audio.sampleRate);
 
     if (!this.ttsData) {
@@ -82,32 +217,38 @@ class Piper {
         "Critical:",
         "An audio object was received but the tts data is missing"
       );
-      console.error(audio);
+      console.log("Audio\n", audio);
     }
 
-    if (!this.audioCtx) {
-      this.audioCtx = new AudioContext({
-        sampleRate: this.ttsData!.sampleRate,
-      });
+    if ((serviceWorker as ServiceWorker) !== undefined) {
+      const clientMessage = {
+        type: "piperWasmClientAudioObject",
+        data: { ttsData: this.ttsData, audioData: audio },
+      };
+      if (self.postMessage) {
+        self.postMessage(clientMessage);
+      } else if (this.tabID) {
+        if (chrome?.tabs?.sendMessage) {
+          chrome.tabs.sendMessage(this.tabID, clientMessage);
+        } else if (browser?.tabs?.sendMessage) {
+          browser.tabs.sendMessage(this.tabID, clientMessage);
+        }
+      } else {
+        console.error(
+          "It seems like the main piper-wasm interface is being run inside a worker,",
+          "however, 'self' does not have a 'postMessage' method,",
+          "so this is probably run inside a background script of a chrome extension.",
+          "If this is a chrome extension, then piper-wasm needs a tabID.",
+          "Specify it by passing it as the third argument to 'new Piper()'"
+        );
+      }
+      return;
     }
 
-    const buffer = this.audioCtx.createBuffer(
-      1,
-      audio.samples.length,
-      this.ttsData!.sampleRate
-    );
-
-    const ptr = buffer.getChannelData(0);
-    for (let i = 0; i < audio.samples.length; i++) {
-      ptr[i] = audio.samples[i];
-    }
-    const source = this.audioCtx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(this.audioCtx.destination);
-    source.start();
-    this.onStart[audio.id](audio.id, audio.text);
-    source.addEventListener("ended", () => {
-      this.onEnd[audio.id](audio.id, audio.text);
+    this.piperRunner.generate({
+      utterance: this.utterances[audio.id],
+      audioData: audio,
+      ttsData: this.ttsData,
     });
   }
 
