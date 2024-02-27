@@ -14,16 +14,36 @@ export type AudioData = {
   sampleRate: number;
 };
 
-type ClientMessage = {
-  type: "piperWasmClientAudioObject";
-  data: { ttsData: TTSData; audioData: AudioData };
-};
+type ClientMessage =
+  | {
+      type: "piperWasmClientAudioObject";
+      data: { ttsData: TTSData; audioData: AudioData };
+    }
+  | {
+      type: "piperWasmClientStartGenerating";
+    };
 
 export class PiperRunner {
   audioCtx?: AudioContext;
+  audioQueue: {
+    utterance: SpeechSynthesisUtterance;
+    audioData: AudioData;
+    ttsData: TTSData;
+  }[] = [];
+  isGenerating: boolean = false;
+  isReading: boolean = false;
+  stopTimeouts: NodeJS.Timeout[] = [];
   messageHandler?: (message: ClientMessage) => void;
 
   constructor() {}
+
+  _onStartGenerating() {
+    this.isGenerating = true;
+  }
+
+  _onEndGenerating() {
+    this.isGenerating = false;
+  }
 
   setOnAudio(onAudio: (id, text) => SpeechSynthesisUtterance) {
     if (this.messageHandler) {
@@ -41,6 +61,10 @@ export class PiperRunner {
             audioData: message.data.audioData,
             ttsData: message.data.ttsData,
           });
+          this._onEndGenerating();
+          break;
+        case "piperWasmClientStartGenerating":
+          this._onStartGenerating();
           break;
         default:
           break;
@@ -61,7 +85,33 @@ export class PiperRunner {
     utterance.dispatchEvent(
       new SpeechSynthesisEvent("end", { utterance: utterance })
     );
-    console.log(id, text, "(started reading)");
+    this.isReading = false;
+    if (this.audioQueue.length > 0) {
+      this.generate(this.audioQueue.at(0));
+      this.audioQueue.shift();
+    }
+    console.log(id, text, "(stopped reading)");
+  }
+
+  stop(instance) {
+    instance._onStop(instance);
+  }
+
+  _onStop(currentSource: {
+    source: AudioBufferSourceNode;
+    utterance: SpeechSynthesisUtterance;
+    id: number;
+    text: string;
+  }) {
+    if (currentSource) {
+      currentSource.source.stop();
+      currentSource.source.disconnect();
+      this._onEnd(
+        currentSource.utterance,
+        currentSource.id,
+        currentSource.text
+      );
+    }
   }
 
   generate(from: {
@@ -69,6 +119,15 @@ export class PiperRunner {
     audioData: AudioData;
     ttsData: TTSData;
   }) {
+    if (this.isReading) {
+      this.audioQueue.push({
+        utterance: from.utterance,
+        audioData: from.audioData,
+        ttsData: from.ttsData,
+      });
+      return;
+    }
+    this.isReading = true;
     if (!this.audioCtx) {
       this.audioCtx = new AudioContext({
         sampleRate: from.ttsData.sampleRate,
@@ -93,8 +152,14 @@ export class PiperRunner {
     source.connect(this.audioCtx.destination);
     source.start();
     this._onStart(from.utterance, from.audioData.id, from.audioData.text);
-    setTimeout(() => {
-      this._onEnd(from.utterance, from.audioData.id, from.audioData.text);
+    const currentSource = {
+      source: source,
+      utterance: from.utterance,
+      id: from.audioData.id,
+      text: from.audioData.text,
+    };
+    this.stopTimeouts[from.audioData.id] = setTimeout(() => {
+      this._onStop(currentSource);
     }, durationMs);
   }
 }
@@ -162,6 +227,12 @@ class Piper {
       case "ttsData":
         piperInstance.ttsData = data;
         piperInstance.onInit((utterance: SpeechSynthesisUtterance) => {
+          if (workerIsPiper && piperInstance.tabID) {
+            const clientMessage = {
+              type: "piperWasmClientStartGenerating",
+            } as const;
+            piperInstance.sendMessageToTab(piperInstance.tabID, clientMessage);
+          }
           piperInstance.utterances[piperInstance.generationIndex] = utterance;
           postMessage({
             type: "generate",
@@ -172,6 +243,14 @@ class Piper {
         break;
       case "audioObj":
         piperInstance.handleAudioObj(data);
+    }
+  }
+
+  sendMessageToTab(tabID: number, clientMessage: ClientMessage) {
+    if (chrome?.tabs?.sendMessage) {
+      chrome.tabs.sendMessage(tabID, clientMessage);
+    } else if (browser?.tabs?.sendMessage) {
+      browser.tabs.sendMessage(tabID, clientMessage);
     }
   }
 
@@ -223,16 +302,12 @@ class Piper {
     if ((serviceWorker as ServiceWorker) !== undefined) {
       const clientMessage = {
         type: "piperWasmClientAudioObject",
-        data: { ttsData: this.ttsData, audioData: audio },
-      };
+        data: { ttsData: this.ttsData, audioData: audio as AudioData },
+      } as const;
       if (self.postMessage) {
         self.postMessage(clientMessage);
       } else if (this.tabID) {
-        if (chrome?.tabs?.sendMessage) {
-          chrome.tabs.sendMessage(this.tabID, clientMessage);
-        } else if (browser?.tabs?.sendMessage) {
-          browser.tabs.sendMessage(this.tabID, clientMessage);
-        }
+        this.sendMessageToTab(this.tabID, clientMessage);
       } else {
         console.error(
           "It seems like the main piper-wasm interface is being run inside a worker,",
