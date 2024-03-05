@@ -1,6 +1,6 @@
 // @ts - ignore
 // import Worker from "worker-loader!./worker.js";
-import { PiperSpeechSynthesisUtterance } from "piper_speech_synthesis_utterance";
+import { PiperSpeechSynthesisUtterance } from "./piper_speech_synthesis_utterance";
 import { handleMessage as postMessageSync } from "./worker";
 declare var serviceWorker: any;
 
@@ -161,7 +161,7 @@ export class PiperRunner {
     }
     const source = this.audioCtx.createBufferSource();
     source.buffer = buffer;
-    const durationMs = (sampleLength / from.audioData.sampleRate) * 1000;
+    const durationMs = (sampleLength / from.audioData.sampleRate) * 1000 + 500;
 
     source.connect(this.audioCtx.destination);
     source.start();
