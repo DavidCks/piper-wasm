@@ -39,6 +39,12 @@ export class PiperRunner {
   isGenerating: boolean = false;
   isReading: boolean = false;
   stopTimeouts: NodeJS.Timeout[] = [];
+  currentSource: {
+    source: AudioBufferSourceNode;
+    utterance: PiperSpeechSynthesisUtterance;
+    id: number;
+    text: string;
+  };
   messageHandler?: (message: ClientMessage) => void;
 
   constructor(onWorkerInit = () => null) {
@@ -108,13 +114,13 @@ export class PiperRunner {
     console.log(id, text, "(stopped reading)");
   }
 
-  stop(instance) {
+  stop(instance: PiperRunner) {
     instance.audioQueue = [];
-    instance._onStop(instance);
+    instance._onSkip(instance.currentSource);
   }
 
-  skip(instance) {
-    instance._onStop(instance);
+  skip(instance: PiperRunner) {
+    instance._onSkip(instance.currentSource);
   }
 
   _onSkip(currentSource: {
@@ -166,14 +172,14 @@ export class PiperRunner {
     source.connect(this.audioCtx.destination);
     source.start();
     this._onStart(from.utterance, from.audioData.id, from.audioData.text);
-    const currentSource = {
+    this.currentSource = {
       source: source,
       utterance: from.utterance,
       id: from.audioData.id,
       text: from.audioData.text,
     };
     this.stopTimeouts[from.audioData.id] = setTimeout(() => {
-      this._onSkip(currentSource);
+      this._onSkip(this.currentSource);
     }, durationMs);
   }
 }
