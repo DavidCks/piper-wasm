@@ -2,7 +2,7 @@
 // import Worker from "worker-loader!./worker.js";
 import { PiperSpeechSynthesisUtterance } from "./piper_speech_synthesis_utterance";
 import { handleMessage as postMessageSync } from "./worker";
-declare var serviceWorker: any;
+declare var WorkerGlobalScope: any;
 
 export type TTSData = {
   sampleRate: number;
@@ -96,6 +96,9 @@ export class PiperRunner {
   }
 
   _onStart(utterance, id, text) {
+    if (typeof utterance.utterance !== "undefined") {
+      utterance = utterance.utterance;
+    }
     utterance.dispatchEvent(
       new SpeechSynthesisEvent("start", { utterance: utterance })
     );
@@ -103,6 +106,9 @@ export class PiperRunner {
   }
 
   _onEnd(utterance, id, text) {
+    if (typeof utterance.utterance !== "undefined") {
+      utterance = utterance.utterance;
+    }
     utterance.dispatchEvent(
       new SpeechSynthesisEvent("end", { utterance: utterance })
     );
@@ -224,16 +230,20 @@ class Piper {
 
   handleWorkerMessage(type: string, data: any, workerInstance: Worker | Piper) {
     const workerIsPiper =
-      (workerInstance as Piper).isPiper &&
+      typeof (workerInstance as Piper).isPiper !== "undefined" &&
       (workerInstance as Piper).isPiper(workerInstance);
     const postMessage = workerIsPiper
       ? workerInstance.postMessageSyncFactory(
           workerInstance.handleWorkerMessage
         )
-      : (workerInstance as Worker).postMessage;
+      : (msg: any) => (workerInstance as Worker).postMessage(msg);
 
     const piperInstance: Piper | undefined =
-      this ?? workerIsPiper ? (workerInstance as Piper) : undefined;
+      typeof this !== "undefined"
+        ? this
+        : workerIsPiper
+        ? (workerInstance as Piper)
+        : undefined;
     if (!piperInstance) {
       console.error(
         "Critical:",
@@ -292,7 +302,10 @@ class Piper {
     try {
       url = new URL("./worker.js", import.meta.url);
       worker = new Worker(url.href, { type: "module" });
-      postMessage = worker.postMessage;
+      worker.onerror = (e: ErrorEvent) => {
+        console.error("Something went wrong inside the worker:", e);
+      };
+      postMessage = (msg: any) => worker.postMessage(msg);
     } catch (error) {
       console.warn(
         "Warning:",
@@ -330,7 +343,11 @@ class Piper {
       console.log("Audio\n", audio);
     }
 
-    if ((serviceWorker as ServiceWorker) !== undefined) {
+    if (
+      typeof WorkerGlobalScope !== "undefined" &&
+      self instanceof WorkerGlobalScope &&
+      typeof self.addEventListener !== "undefined"
+    ) {
       const clientMessage = {
         type: "piperWasmClientAudioObject",
         data: { ttsData: this.ttsData, audioData: audio as AudioData },

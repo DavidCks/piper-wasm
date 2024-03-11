@@ -1,3 +1,5 @@
+console.log("Worker should exist");
+
 // Import the initModule and sherpaInit functions directly
 import { initModule } from "./app.js"; // Adjust the path as necessary
 import { init as sherpaInit } from "./sherpa-onnx-wasm-main.js"; // Adjust the path as necessary
@@ -6,7 +8,12 @@ let module;
 let generate;
 
 async function initialize(data, messageCallback = undefined) {
-  const postMessage = messageCallback ?? self.postMessage;
+  let postMessage;
+  if (messageCallback) {
+    postMessage = messageCallback;
+  } else {
+    postMessage = (msg) => self.postMessage(msg);
+  }
   module = initModule((tts, genFunc) => {
     const ttsDataMessage = {
       type: "ttsData",
@@ -24,7 +31,12 @@ export const handleMessage = async (
   data,
   messageCallback = undefined
 ) => {
-  const postMessage = messageCallback ?? self.postMessage;
+  let postMessage;
+  if (messageCallback) {
+    postMessage = messageCallback;
+  } else {
+    postMessage = (msg) => self.postMessage(msg);
+  }
   switch (type) {
     case "hello":
       postMessage({ type: "Hello World!" });
@@ -48,7 +60,13 @@ export const handleMessage = async (
   }
 };
 
-addEventListener("message", async (e) => {
-  const { type, data } = e.data;
-  handleMessage(type, data);
-});
+if (
+  typeof WorkerGlobalScope !== "undefined" &&
+  self instanceof WorkerGlobalScope &&
+  typeof self.addEventListener !== "undefined"
+) {
+  self.addEventListener("message", async (e) => {
+    const { type, data } = e.data;
+    handleMessage(type, data);
+  });
+}

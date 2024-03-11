@@ -1,4 +1,5 @@
 export class PiperSpeechSynthesisUtterance {
+  utterance;
   lang;
   pitch;
   rate;
@@ -14,7 +15,8 @@ export class PiperSpeechSynthesisUtterance {
       utterance.rate,
       utterance.volume,
       utterance.voice,
-      piperID
+      piperID,
+      utterance
     );
   }
 
@@ -24,7 +26,8 @@ export class PiperSpeechSynthesisUtterance {
     rate?: number,
     volume?: number,
     voice?: SpeechSynthesisVoice,
-    piperID?: number
+    piperID?: number,
+    utterance?: SpeechSynthesisUtterance
   ) {
     this.text = text;
     this.pitch = pitch ?? 1;
@@ -32,5 +35,6 @@ export class PiperSpeechSynthesisUtterance {
     this.volume = volume ?? 1;
     this.voice = voice ?? undefined;
     this.piperID = piperID ?? -1;
+    this.utterance = utterance ?? new SpeechSynthesisUtterance(text);
   }
 }
