@@ -1,8 +1,9 @@
 {
   "name": "piper-wasm",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Wasm Version of rhasspy/piper running locally in the browser",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "bun run build-worker-expression && bun run build-worker-piper && bun run copy-transformers-dist && bun run copy-onnx-1_17_0-dist",
